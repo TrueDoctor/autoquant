@@ -1,4 +1,4 @@
-use linregress::{assert_almost_eq, FormulaRegressionBuilder, RegressionDataBuilder};
+use linregress::{FormulaRegressionBuilder, RegressionDataBuilder, RegressionModel};
 use rand::distributions::Distribution;
 use statrs::distribution::Normal;
 
@@ -32,24 +32,38 @@ pub fn generate_normal_distribution(
     result
 }
 
+pub fn encode(value: f64, fit: &impl FitFn, model: &RegressionModel, samples: u32) -> u64 {
+    let mapped_value = fit.function(model.predict([("X", vec![value])]).unwrap()[0]);
+    let normalized = mapped_value.clamp(0., 1.);
+    (normalized * samples as f64) as u64
+}
+pub fn decode(value: u64, fit: &impl FitFn, model: &RegressionModel, samples: u32) -> f64 {
+    let mapped_value = fit.inverse(value as f64 / samples as f64);
+    let offset = model.parameters()[0];
+    let muliplier = model.parameters()[1];
+    ((mapped_value - offset) / muliplier) as f64
+}
+
 pub fn calculate_sampled_error(
-    samples: usize,
-    distribution: &[(f64, f64)],
-    fit: impl Fn(f64) -> f64 + Copy,
+    distribution: &[f64],
+    fit: &impl FitFn,
+    model: &RegressionModel,
+    samples: u32,
 ) -> f64 {
-    (0..samples)
-        .into_iter()
-        .map(|x| x as f64 / samples as f64)
-        .map(|x| {
-            let y = inverse_of_distribution(distribution, x);
-            let y_fit = inverse_of_fn(fit, x);
-            (y - y_fit).powi(2)
-        })
-        .sum::<f64>();
-    distribution
-        .iter()
-        .map(|&(x, y)| (y - fit(x)).powi(2))
-        .sum()
+    let mut sumerror = 0.0;
+    let mut outliers = 0;
+    for sample in distribution {
+        let encoded = encode(*sample, fit, model, samples);
+        let decoded = decode(encoded, fit, model, samples);
+        let error = (decoded - sample).powi(2);
+        // TODO: Fix
+        if error.is_finite() {
+            sumerror += error;
+        } else {
+            outliers += 1;
+        }
+    }
+    sumerror / (distribution.len() - outliers) as f64
 }
 
 pub fn inverse_of_distribution(distribution: &[(f64, f64)], y: f64) -> f64 {
@@ -66,7 +80,9 @@ pub fn inverse_of_fn(f: impl Fn(f64) -> f64, x: f64) -> f64 {
     let mut b = 100.0;
     let mut c = 1.0;
     let mut y = f(c);
+    let mut counter = 0;
     while (y - x).abs() > 1e-6 {
+        counter += 1;
         if (y > x) == (f(c + 1e-6) > f(c)) {
             b = c;
         } else {
@@ -74,6 +90,9 @@ pub fn inverse_of_fn(f: impl Fn(f64) -> f64, x: f64) -> f64 {
         }
         c = (a + b) / 2.;
         y = f(c);
+        if counter > 1000 {
+            panic!("Could not find inverse of function");
+        }
     }
     c
 }
@@ -102,7 +121,7 @@ impl FitFn for SimpleFitFn {
     }
 }
 
-pub static FIT_FUNCTIONS: [SimpleFitFn; 4] = [
+pub static FIT_FUNCTIONS: [SimpleFitFn; 7] = [
     SimpleFitFn {
         function: |x| x,
         inverse: |x| x,
@@ -119,9 +138,24 @@ pub static FIT_FUNCTIONS: [SimpleFitFn; 4] = [
         name: "power 2",
     },
     SimpleFitFn {
+        function: |x| x.sqrt(),
+        inverse: |x| x.powi(2),
+        name: "sqrt",
+    },
+    SimpleFitFn {
         function: |x| x.powi(3),
         inverse: |x| x.powf(1. / 3.),
         name: "power 3",
+    },
+    SimpleFitFn {
+        function: |x| x.log10(),
+        inverse: |x| x.powf(10.),
+        name: "log10",
+    },
+    SimpleFitFn {
+        function: |x| x.powf(10.),
+        inverse: |x| x.log10(),
+        name: "exp",
     },
 ];
 
@@ -130,13 +164,14 @@ pub fn linearize_distribution(distribution: &[(f64, f64)], fit: &impl FitFn) -> 
         .iter()
         .map(|&(x, y)| (x, fit.inverse(y)))
         .collect();
-    normalize_distribution(&mapped_distribution)
+    //normalize_distribution(&mapped_distribution)
+    mapped_distribution
 }
 
 pub fn fit_distribution(
     distribution: &[(f64, f64)],
     fit: &impl FitFn,
-) -> anyhow::Result<(f32, f32)> {
+) -> anyhow::Result<RegressionModel> {
     let linearized_distribution = linearize_distribution(distribution, fit);
     let x = linearized_distribution
         .iter()
@@ -152,23 +187,25 @@ pub fn fit_distribution(
         .data(&data)
         .formula("Y ~ X")
         .fit()?;
-    let parameters: Vec<_> = model.iter_parameter_pairs().collect();
-    let pvalues: Vec<_> = model.iter_p_value_pairs().collect();
-    let standard_errors: Vec<_> = model.iter_se_pairs().collect();
-    println!(
-        "{}\nparameters: {:?}\npvalues{:?}\nerrors{:?}",
-        fit.name(),
-        parameters,
-        pvalues,
-        standard_errors
+    let error = calculate_sampled_error(
+        &distribution.iter().map(|&(x, _)| x).collect::<Vec<_>>(),
+        fit,
+        &model,
+        1000,
     );
-    Ok((0., 0.))
+    println!(
+        "{} \tr²={:?} \t sampled_error: {}",
+        fit.name(),
+        model.rsquared(),
+        error
+    );
+    Ok(model)
 }
 
 pub fn fit_distributions(
     distribution: &[(f64, f64)],
     fits: &[impl FitFn],
-) -> anyhow::Result<Vec<(f32, f32)>> {
+) -> anyhow::Result<Vec<RegressionModel>> {
     fits.iter()
         .map(|fit| fit_distribution(distribution, fit))
         .collect()
