@@ -51,19 +51,13 @@ pub fn calculate_sampled_error(
     samples: u32,
 ) -> f64 {
     let mut sumerror = 0.0;
-    let mut outliers = 0;
     for sample in distribution {
         let encoded = encode(*sample, fit, model, samples);
         let decoded = decode(encoded, fit, model, samples);
         let error = (decoded - sample).powi(2);
-        // TODO: Fix
-        if error.is_finite() {
-            sumerror += error;
-        } else {
-            outliers += 1;
-        }
+        sumerror += error;
     }
-    sumerror / (distribution.len() - outliers) as f64
+    sumerror / distribution.len() as f64
 }
 
 pub fn inverse_of_distribution(distribution: &[(f64, f64)], y: f64) -> f64 {
