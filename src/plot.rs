@@ -1,4 +1,3 @@
-use linregress::RegressionModel;
 use plotters::prelude::*;
 
 use crate::FitFn;
@@ -6,18 +5,22 @@ const OUT_FILE_NAME: &str = "histogram.svg";
 
 pub fn plot_histogram(
     data: &[(f64, f64)],
-    fits: &[(&dyn FitFn, &RegressionModel)],
+    fits: &[&dyn FitFn],
 ) -> Result<(), Box<dyn std::error::Error>> {
     let root = SVGBackend::new(OUT_FILE_NAME, (1920, 1080)).into_drawing_area();
 
     root.fill(&WHITE)?;
+    let minx = data.first().expect("No data").0;
+    let maxx = data.last().expect("No data").0;
+    let miny = data.first().expect("No data").1;
+    let maxy = data.last().expect("No data").1;
 
     let mut chart = ChartBuilder::on(&root)
         .x_label_area_size(35)
         .y_label_area_size(80)
         .margin(5)
         .caption("Integrated normal distribution", ("sans-serif", 50.0))
-        .build_cartesian_2d(-5f64..5f64, 0f64..1f64)?;
+        .build_cartesian_2d(minx..maxx, miny..maxy)?;
 
     chart
         .configure_mesh()
@@ -29,15 +32,15 @@ pub fn plot_histogram(
         .draw()?;
 
     chart
-        .draw_series(LineSeries::new(data.iter().cloned(), RED))?
+        .draw_series(LineSeries::new(data.iter().map(|(x, y)| (*x, *y)), RED))?
         .label("CDF")
         .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], RED));
 
-    for (i, (fit, model)) in fits.iter().enumerate() {
+    for (i, fit) in fits.iter().enumerate() {
         let color = Palette99::pick(i + 1);
         let fit_data = data
             .iter()
-            .map(|&(x, _)| (x, fit.function(model.predict([("X", vec![x])]).unwrap()[0])))
+            .map(|&(x, _)| (x, fit.function(x)))
             .collect::<Vec<_>>();
         chart
             .draw_series(LineSeries::new(fit_data.iter().cloned(), &color))?

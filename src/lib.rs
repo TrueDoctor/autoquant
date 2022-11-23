@@ -1,4 +1,6 @@
 use linregress::{FormulaRegressionBuilder, RegressionDataBuilder, RegressionModel};
+use nalgebra::Scalar;
+use num::traits::Float;
 use rand::distributions::Distribution;
 use statrs::distribution::Normal;
 
@@ -11,6 +13,13 @@ pub fn integrate_distribution(mut distribution: Vec<f64>) -> Vec<(f64, f64)> {
         result.push((value, sum));
     }
     result
+}
+
+pub fn drop_duplicates(distribution: &mut Vec<(f64, f64)>) {
+    distribution.reverse();
+    distribution.sort_unstable_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
+    distribution.dedup_by(|a, b| a.0 == b.0);
+    distribution.reverse();
 }
 
 pub fn normalize_distribution(distribution: &[(f64, f64)]) -> Vec<(f64, f64)> {
@@ -32,29 +41,22 @@ pub fn generate_normal_distribution(
     result
 }
 
-pub fn encode(value: f64, fit: &impl FitFn, model: &RegressionModel, samples: u32) -> u64 {
-    let mapped_value = fit.function(model.predict([("X", vec![value])]).unwrap()[0]);
-    let normalized = mapped_value.clamp(0., 1.);
+pub fn encode(value: f64, fit: &dyn FitFn, samples: u32) -> u64 {
+    let mapped_value = fit.function(value);
+    //let normalized = mapped_value.clamp(0., 2.);
+    let normalized = mapped_value;
     (normalized * samples as f64) as u64
 }
-pub fn decode(value: u64, fit: &impl FitFn, model: &RegressionModel, samples: u32) -> f64 {
-    let mapped_value = fit.inverse(value as f64 / samples as f64);
-    let offset = model.parameters()[0];
-    let muliplier = model.parameters()[1];
-    ((mapped_value - offset) / muliplier) as f64
+pub fn decode(value: u64, fit: &dyn FitFn, samples: u32) -> f64 {
+    fit.inverse(value as f64 / samples as f64)
 }
 
-pub fn calculate_sampled_error(
-    distribution: &[f64],
-    fit: &impl FitFn,
-    model: &RegressionModel,
-    samples: u32,
-) -> f64 {
+pub fn calculate_sampled_error(distribution: &[f64], fit: &dyn FitFn, samples: u32) -> f64 {
     let mut sumerror = 0.0;
     for sample in distribution {
-        let encoded = encode(*sample, fit, model, samples);
-        let decoded = decode(encoded, fit, model, samples);
-        let error = (decoded - sample).powi(2);
+        let encoded = encode(*sample, fit, samples);
+        let decoded = decode(encoded, fit, samples);
+        let error = ((decoded - sample) / sample).powi(2);
         sumerror += error;
     }
     sumerror / distribution.len() as f64
@@ -90,6 +92,7 @@ pub fn inverse_of_fn(f: impl Fn(f64) -> f64, x: f64) -> f64 {
     }
     c
 }
+type Dist = Vec<(f64, f64)>;
 
 pub trait FitFn {
     fn function(&self, x: f64) -> f64;
@@ -97,13 +100,15 @@ pub trait FitFn {
     fn name(&self) -> &str;
 }
 
-pub struct SimpleFitFn {
-    function: fn(f64) -> f64,
-    inverse: fn(f64) -> f64,
+pub struct SimpleFitFn<F: Fn(f64) -> f64, I: Fn(f64) -> f64> {
+    function: F,
+    inverse: I,
     name: &'static str,
 }
 
-impl FitFn for SimpleFitFn {
+mod models;
+
+impl<F: Fn(f64) -> f64, I: Fn(f64) -> f64> FitFn for SimpleFitFn<F, I> {
     fn function(&self, x: f64) -> f64 {
         (self.function)(x)
     }
@@ -115,43 +120,51 @@ impl FitFn for SimpleFitFn {
     }
 }
 
-pub static FIT_FUNCTIONS: [SimpleFitFn; 7] = [
-    SimpleFitFn {
-        function: |x| x,
-        inverse: |x| x,
-        name: "identity",
-    },
-    SimpleFitFn {
-        function: |x| 1. / x,
-        inverse: |x| 1. / x,
-        name: "inverse",
-    },
-    SimpleFitFn {
-        function: |x| x.powi(2),
-        inverse: |x| x.sqrt(),
-        name: "power 2",
-    },
-    SimpleFitFn {
-        function: |x| x.sqrt(),
-        inverse: |x| x.powi(2),
-        name: "sqrt",
-    },
-    SimpleFitFn {
-        function: |x| x.powi(3),
-        inverse: |x| x.powf(1. / 3.),
-        name: "power 3",
-    },
-    SimpleFitFn {
-        function: |x| x.log10(),
-        inverse: |x| x.powf(10.),
-        name: "log10",
-    },
-    SimpleFitFn {
-        function: |x| x.powf(10.),
-        inverse: |x| x.log10(),
-        name: "exp",
-    },
-];
+use models::*;
+
+pub fn fit_functions(dist: Dist) -> Vec<Box<dyn FitFn>> {
+    let max = dist.last().unwrap().0;
+    vec![
+        /*SimpleFitFn {
+            function: |x| x,
+            inverse: |x| x,
+            name: "identity",
+        },*/ /*
+           SimpleFitFn {
+               function: |x| 1. / x,
+               inverse: |x| 1. / x,
+               name: "inverse",
+           },*/
+        Box::new(SimpleFitFn {
+            function: move |x| x / max,
+            inverse: move |x| x * max,
+            name: "identity",
+        }),
+        Box::new(models::VarPro::<PowerTwo>::new(dist.clone())),
+        Box::new(models::VarPro::<Log>::new(dist)),
+        /*
+        SimpleFitFn {
+            function: |x| x.sqrt(),
+            inverse: |x| x.powi(2),
+            name: "sqrt",
+        },
+        SimpleFitFn {
+            function: |x| x.powi(3),
+            inverse: |x| x.powf(1. / 3.),
+            name: "power 3",
+        },
+        SimpleFitFn {
+            function: |x| x.ln(),
+            inverse: |x| x.exp(),
+            name: "ln",
+        },
+        SimpleFitFn {
+            function: |x| x.exp(),
+            inverse: |x| x.ln(),
+            name: "exp",
+        },*/
+    ]
+}
 
 pub fn linearize_distribution(distribution: &[(f64, f64)], fit: &impl FitFn) -> Vec<(f64, f64)> {
     let mapped_distribution: Vec<_> = distribution
@@ -176,7 +189,9 @@ pub fn fit_distribution(
         .map(|&(_, y)| y)
         .collect::<Vec<_>>();
     let data = vec![("Y", y), ("X", x)];
-    let data = RegressionDataBuilder::new().build_from(data)?;
+    let data = RegressionDataBuilder::new()
+        .invalid_value_handling(linregress::InvalidValueHandling::DropInvalid)
+        .build_from(data)?;
     let model = FormulaRegressionBuilder::new()
         .data(&data)
         .formula("Y ~ X")
@@ -184,8 +199,7 @@ pub fn fit_distribution(
     let error = calculate_sampled_error(
         &distribution.iter().map(|&(x, _)| x).collect::<Vec<_>>(),
         fit,
-        &model,
-        1000,
+        1 << 16,
     );
     println!(
         "{} \tr²={:?} \t sampled_error: {}",
