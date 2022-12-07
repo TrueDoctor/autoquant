@@ -179,28 +179,6 @@ pub fn linearize_distribution(distribution: &[(f64, f64)], fit: &impl FitFn) -> 
     mapped_distribution
 }
 
-#[cfg(feature = "fitting")]
-pub fn fit_distribution(distribution: &[(f64, f64)], fit: &impl FitFn) {
-    let error = calculate_sampled_error(
-        &distribution.iter().map(|&(x, _)| x).collect::<Vec<_>>(),
-        fit,
-        1 << 16,
-    );
-    println!(
-        "{} \tr²={:?} \t sampled_error: {}",
-        fit.name(),
-        model.rsquared(),
-        error
-    );
-}
-
-#[cfg(feature = "fitting")]
-pub fn fit_distributions(distribution: &[(f64, f64)], fits: &[impl FitFn]) {
-    fits.iter()
-        .for_each(|fit| fit_distribution(distribution, fit))
-        .collect()
-}
-
 #[cfg(feature = "plotting")]
 pub mod plot;
 
