@@ -1,7 +1,7 @@
-use linregress::{FormulaRegressionBuilder, RegressionDataBuilder, RegressionModel};
 use nalgebra::Scalar;
 use num::traits::Float;
 use rand::distributions::Distribution;
+#[cfg(feature = "generation")]
 use statrs::distribution::Normal;
 
 pub fn integrate_distribution(mut distribution: Vec<f64>) -> Vec<(f64, f64)> {
@@ -27,6 +27,7 @@ pub fn normalize_distribution(distribution: &[(f64, f64)]) -> Vec<(f64, f64)> {
     distribution.iter().map(|&(x, y)| (x, y / max)).collect()
 }
 
+#[cfg(feature = "generation")]
 pub fn generate_normal_distribution(
     mean: f64,
     standard_deviation: f64,
@@ -106,7 +107,9 @@ pub struct SimpleFitFn<F: Fn(f64) -> f64, I: Fn(f64) -> f64> {
     name: &'static str,
 }
 
+#[cfg(feature = "fitting")]
 mod models;
+use models::*;
 
 impl<F: Fn(f64) -> f64, I: Fn(f64) -> f64> FitFn for SimpleFitFn<F, I> {
     fn function(&self, x: f64) -> f64 {
@@ -120,8 +123,7 @@ impl<F: Fn(f64) -> f64, I: Fn(f64) -> f64> FitFn for SimpleFitFn<F, I> {
     }
 }
 
-use models::*;
-
+#[cfg(feature = "fitting")]
 pub fn fit_functions(dist: Dist) -> Vec<Box<dyn FitFn>> {
     let max = dist.last().unwrap().0;
     vec![
@@ -175,27 +177,8 @@ pub fn linearize_distribution(distribution: &[(f64, f64)], fit: &impl FitFn) -> 
     mapped_distribution
 }
 
-pub fn fit_distribution(
-    distribution: &[(f64, f64)],
-    fit: &impl FitFn,
-) -> anyhow::Result<RegressionModel> {
-    let linearized_distribution = linearize_distribution(distribution, fit);
-    let x = linearized_distribution
-        .iter()
-        .map(|&(x, _)| x)
-        .collect::<Vec<_>>();
-    let y = linearized_distribution
-        .iter()
-        .map(|&(_, y)| y)
-        .collect::<Vec<_>>();
-    let data = vec![("Y", y), ("X", x)];
-    let data = RegressionDataBuilder::new()
-        .invalid_value_handling(linregress::InvalidValueHandling::DropInvalid)
-        .build_from(data)?;
-    let model = FormulaRegressionBuilder::new()
-        .data(&data)
-        .formula("Y ~ X")
-        .fit()?;
+#[cfg(feature = "fitting")]
+pub fn fit_distribution(distribution: &[(f64, f64)], fit: &impl FitFn) {
     let error = calculate_sampled_error(
         &distribution.iter().map(|&(x, _)| x).collect::<Vec<_>>(),
         fit,
@@ -207,18 +190,16 @@ pub fn fit_distribution(
         model.rsquared(),
         error
     );
-    Ok(model)
 }
 
-pub fn fit_distributions(
-    distribution: &[(f64, f64)],
-    fits: &[impl FitFn],
-) -> anyhow::Result<Vec<RegressionModel>> {
+#[cfg(feature = "fitting")]
+pub fn fit_distributions(distribution: &[(f64, f64)], fits: &[impl FitFn]) {
     fits.iter()
-        .map(|fit| fit_distribution(distribution, fit))
+        .for_each(|fit| fit_distribution(distribution, fit))
         .collect()
 }
 
+#[cfg(feature = "plotting")]
 pub mod plot;
 
 #[cfg(test)]
