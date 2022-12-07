@@ -7,8 +7,8 @@ edition = "2021"
 
 [features]
 fitting = ["varpro"]
-generation = ["rand", "statsrs"]
-rawloader = ["rawloading"]
+generation = ["rand", "statrs"]
+rawloading = ["rawloader"]
 plotting = ["plotters"]
 
 [dependencies]
@@ -16,7 +16,7 @@ anyhow = "1.0.66"
 nalgebra = "0.30.1"
 num = "0.4.0"
 plotters = {version = "0.3.4", optional = true}
-rand = "0.8.5"
-rawloader = { path = "rawloader" }
-statrs = "0.16.0"
+rand = {version = "0.8.5", optional = true}
+rawloader = { path = "rawloader", optional = true }
+statrs = {version = "0.16.0", optional = true}
 varpro = { version = "0.4.0", optional = true }

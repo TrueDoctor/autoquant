@@ -1,5 +1,6 @@
 use nalgebra::Scalar;
 use num::traits::Float;
+#[cfg(feature = "generation")]
 use rand::distributions::Distribution;
 #[cfg(feature = "generation")]
 use statrs::distribution::Normal;
@@ -109,6 +110,7 @@ pub struct SimpleFitFn<F: Fn(f64) -> f64, I: Fn(f64) -> f64> {
 
 #[cfg(feature = "fitting")]
 mod models;
+#[cfg(feature = "fitting")]
 use models::*;
 
 impl<F: Fn(f64) -> f64, I: Fn(f64) -> f64> FitFn for SimpleFitFn<F, I> {
