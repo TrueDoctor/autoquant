@@ -103,9 +103,9 @@ pub trait FitFn {
 }
 
 pub struct SimpleFitFn<F: Fn(f64) -> f64, I: Fn(f64) -> f64> {
-    function: F,
-    inverse: I,
-    name: &'static str,
+    pub function: F,
+    pub inverse: I,
+    pub name: &'static str,
 }
 
 #[cfg(feature = "fitting")]
