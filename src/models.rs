@@ -18,7 +18,7 @@ pub struct VarPro<T> {
 }
 
 impl VarPro<PowerTwo> {
-    pub(crate) fn new(dist: Dist) -> Self {
+    pub fn new(dist: Dist) -> Self {
         let model = SeparableModelBuilder::<f64>::new(&["a"])
             .function(&["a"], |x: &DVector<f64>, a: f64| {
                 x.map(|x| (x - a).powi(2))
