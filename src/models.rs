@@ -23,7 +23,7 @@ impl VarPro<PowerTwo> {
             .function(&["a"], |x: &DVector<f64>, a: f64| {
                 x.map(|x| (x - a).powi(2))
             })
-            .partial_deriv("a", |x: &DVector<f64>, a: f64| x.map(|x| (a - x)))
+            .partial_deriv("a", |x: &DVector<f64>, a: f64| x.map(|x| 2. * (a - x)))
             // add the constant as a vector of ones as an invariant function
             .invariant_function(|x| DVector::from_element(x.len(), 1.))
             .build()
@@ -61,7 +61,7 @@ impl FitFn for VarPro<PowerTwo> {
         let a = self.solved_problem.params()[0];
         let b = self.solved_problem.linear_coefficients().unwrap()[0];
         let c = self.solved_problem.linear_coefficients().unwrap()[1];
-        b + (-1. * a * (c - x)).sqrt() / a
+        a - (-1. * b * (c - x)).sqrt() / b
     }
     fn name(&self) -> &str {
         "pow_2"
@@ -71,8 +71,8 @@ impl FitFn for VarPro<PowerTwo> {
 impl VarPro<Log> {
     pub(crate) fn new(dist: Dist) -> Self {
         let model = SeparableModelBuilder::<f64>::new(&["a"])
-            .function(&["a"], |x: &DVector<f64>, a: f64| x.map(|x| (x - a).ln()))
-            .partial_deriv("a", |x: &DVector<f64>, a: f64| x.map(|x| 1. / (a - x)))
+            .function(&["a"], |x: &DVector<f64>, a: f64| x.map(|x| (x + a).ln()))
+            .partial_deriv("a", |x: &DVector<f64>, a: f64| x.map(|x| -1. / (x + a)))
             // add the constant as a vector of ones as an invariant function
             .invariant_function(|x| DVector::from_element(x.len(), 1.))
             .build()
@@ -85,8 +85,8 @@ impl VarPro<Log> {
             .model(model)
             .x(x)
             .y(y)
-            .initial_guess(&[1.])
-            .epsilon(0.00000001)
+            .initial_guess(&[0.])
+            //.epsilon(0.00000001)
             .build()
             .expect("Building valid problem should not panic");
         // 4. Solve using the fitting problem
@@ -105,13 +105,13 @@ impl FitFn for VarPro<Log> {
         let a = self.solved_problem.params()[0];
         let b = self.solved_problem.linear_coefficients().unwrap()[0];
         let c = self.solved_problem.linear_coefficients().unwrap()[1];
-        (x - a).ln() * b + c
+        (x + a).ln() * b + c
     }
     fn inverse(&self, x: f64) -> f64 {
         let a = self.solved_problem.params()[0];
         let b = self.solved_problem.linear_coefficients().unwrap()[0];
         let c = self.solved_problem.linear_coefficients().unwrap()[1];
-        (-c / b).exp() * ((a) * (c / b).exp() + (x / b).exp())
+        -(-c / b).exp() * ((a) * (c / b).exp() - (x / b).exp())
     }
     fn name(&self) -> &str {
         "log"
