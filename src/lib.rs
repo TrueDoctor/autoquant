@@ -109,7 +109,7 @@ pub struct SimpleFitFn<F: Fn(f64) -> f64, I: Fn(f64) -> f64> {
 }
 
 #[cfg(feature = "fitting")]
-mod models;
+pub mod models;
 #[cfg(feature = "fitting")]
 use models::*;
 
