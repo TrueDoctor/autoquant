@@ -72,7 +72,7 @@ impl VarPro<Log> {
     pub(crate) fn new(dist: Dist) -> Self {
         let model = SeparableModelBuilder::<f64>::new(&["a"])
             .function(&["a"], |x: &DVector<f64>, a: f64| x.map(|x| (x - a).ln()))
-            .partial_deriv("a", |x: &DVector<f64>, a: f64| x.map(|x| 1. / (x - a)))
+            .partial_deriv("a", |x: &DVector<f64>, a: f64| x.map(|x| 1. / (a - x)))
             // add the constant as a vector of ones as an invariant function
             .invariant_function(|x| DVector::from_element(x.len(), 1.))
             .build()
