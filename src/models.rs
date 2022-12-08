@@ -105,13 +105,13 @@ impl FitFn for VarPro<Log> {
         let a = self.solved_problem.params()[0];
         let b = self.solved_problem.linear_coefficients().unwrap()[0];
         let c = self.solved_problem.linear_coefficients().unwrap()[1];
-        (x - a - 260.).ln() * b + c - 0.05
+        (x - a).ln() * b + c
     }
     fn inverse(&self, x: f64) -> f64 {
         let a = self.solved_problem.params()[0];
         let b = self.solved_problem.linear_coefficients().unwrap()[0];
         let c = self.solved_problem.linear_coefficients().unwrap()[1];
-        (-c / b).exp() * ((a + 260.) * (c / b).exp() + (x / b).exp()) + 0.05
+        (-c / b).exp() * ((a) * (c / b).exp() + (x / b).exp())
     }
     fn name(&self) -> &str {
         "log"
