@@ -10,6 +10,7 @@ fitting = ["varpro"]
 generation = ["rand", "statrs"]
 rawloading = ["rawloader"]
 plotting = ["plotters"]
+default = ["fitting"]
 
 [dependencies]
 anyhow = "1.0.66"

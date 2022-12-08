@@ -86,6 +86,7 @@ impl VarPro<Log> {
             .x(x)
             .y(y)
             .initial_guess(&[1.])
+            .epsilon(0.00000001)
             .build()
             .expect("Building valid problem should not panic");
         // 4. Solve using the fitting problem
