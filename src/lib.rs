@@ -45,8 +45,7 @@ pub fn generate_normal_distribution(
 
 pub fn encode(value: f64, fit: &dyn FitFn, samples: u32) -> u64 {
     let mapped_value = fit.function(value);
-    //let normalized = mapped_value.clamp(0., 2.);
-    let normalized = mapped_value;
+    let normalized = mapped_value.clamp(0., 1.);
     (normalized * samples as f64) as u64
 }
 pub fn decode(value: u64, fit: &dyn FitFn, samples: u32) -> f64 {
@@ -58,7 +57,7 @@ pub fn calculate_sampled_error(distribution: &[f64], fit: &dyn FitFn, samples: u
     for sample in distribution {
         let encoded = encode(*sample, fit, samples);
         let decoded = decode(encoded, fit, samples);
-        let error = ((decoded - sample) / sample).powi(2);
+        let error = (decoded - sample).powi(2) * sample.ln();
         sumerror += error;
     }
     sumerror / distribution.len() as f64
@@ -145,7 +144,8 @@ pub fn fit_functions(dist: Dist) -> Vec<Box<dyn FitFn>> {
             name: "identity",
         }),
         Box::new(models::VarPro::<PowerTwo>::new(dist.clone())),
-        Box::new(models::VarPro::<Log>::new(dist)),
+        //Box::new(models::VarPro::<Log>::new(dist)),
+        Box::new(models::OptimizedLog::new(dist, 20)),
         /*
         SimpleFitFn {
             function: |x| x.sqrt(),
