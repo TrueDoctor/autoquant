@@ -1,5 +1,8 @@
+use crate::CreateFitFn;
+
 use super::FitFn;
 
+use argmin::core::observers::{ObserverMode, SlogLogger};
 use argmin::solver::neldermead::NelderMead;
 use varpro::solvers::levmar::LevMarProblemBuilder;
 use varpro::solvers::levmar::LevMarSolver;
@@ -120,25 +123,38 @@ impl FitFn for VarPro<Log> {
 }
 
 use argmin::core::{CostFunction, Error};
+struct Fit<T: CreateFitFn>(Dist, u64, std::marker::PhantomData<T>);
+impl<T: CreateFitFn> Fit<T> {
+    pub fn new(dist: Dist, quantization: u64) -> Self {
+        Self(dist, quantization, std::marker::PhantomData)
+    }
+}
 
-impl CostFunction for Log {
+impl<T: CreateFitFn> CostFunction for Fit<T> {
     type Param = Vec<f64>;
     type Output = f64;
 
-    /// Compute Rosenbrock function
     fn cost(&self, param: &Self::Param) -> Result<Self::Output, Error> {
-        let mut sum = 0.;
-        for (x, y) in self.0.iter() {
-            let a = param[0];
-            let b = param[1];
-            let c = param[2];
-            let y_hat = (x + a).ln() * b + c;
-            let quantized = (y_hat.clamp(0., 1.) * self.1 as f64) as u64;
-            let reverse = quantized as f64 / self.1 as f64;
-            let inverse = -(-c / b).exp() * (a * (c / b).exp() - (reverse / b).exp());
-            let error = (x - inverse).powi(2);
-            sum += error * y / self.0.len() as f64;
-        }
+        println!("{:?}", param);
+        let iter = self.0.windows(2).map(|window| {
+            let [(_, y), (x, yn)]  = window else { unreachable!() } ;
+            let log = T::new(param.clone());
+
+            let y_hat = log.function(*x);
+            assert!(!y_hat.is_nan(), "{:?}", param);
+            //println!("x: {}, y: {}, y_hat: {}", x, y, y_hat);
+            let clamped = y_hat.clamp(0., 1.);
+            let quantized = (clamped * self.1 as f64) as u64;
+            let clamped = quantized as f64 / self.1 as f64;
+            let inverse = log.inverse(clamped);
+            let error = (inverse / x).abs();
+            let error = ((error * (yn - y)) - (yn - y)).abs();
+            //dbg!(error);
+            assert!(error.is_finite(), "{:?}", param);
+            error
+        });
+        let sum = crate::sum::Sum::from_iter(iter).sum();
+        println!("sum: {}", sum);
         Ok(sum)
     }
 }
@@ -149,16 +165,20 @@ pub struct OptimizedLog(Vec<f64>);
 impl OptimizedLog {
     pub fn new(dist: Dist, quantization: u64) -> Self {
         let params = vec![
-            vec![0.0, 1.0, 0.0],
-            vec![0., 2., 0.],
-            vec![0., 1., 1.],
-            vec![1., 1., 0.],
+            vec![0.01, 0.3, 0.5, 4.],
+            vec![0.009, 0.3, 0.5, 4.],
+            vec![0.01, 0.4, 0.5, 4.],
+            vec![0.01, 0.3, 0.6, 4.],
+            vec![0.01, 0.3, 0.5, 5.],
         ];
         let nm: NelderMead<Vec<f64>, f64> = NelderMead::new(params);
 
         //log::debug!("dist: {:?}", dist);
         //println!("dist: {:?}", dist);
-        let executor = executor::Executor::new(Log(dist, quantization), nm); //.configure(|state| state.max_iters(1000).param(vec![0., 1., 0.]));
+        let fit: Fit<OptimizedLog> = Fit::new(dist, quantization);
+        let executor = argmin::core::Executor::new(fit, nm)
+            .configure(|state| state.max_iters(1000))
+            .add_observer(SlogLogger::term(), ObserverMode::Always);
         let res = executor.run().unwrap();
         let params = res.state().best_param.clone().unwrap();
         println!("Result: {:?}", res.state().best_cost);
@@ -173,16 +193,24 @@ impl FitFn for OptimizedLog {
         let a = self.0[0];
         let b = self.0[1];
         let c = self.0[2];
-        (x + a).ln() * b + c
+        let d = self.0[3];
+        ((x + a) * d).abs().ln() * b + c
     }
     fn inverse(&self, x: f64) -> f64 {
         let a = self.0[0];
         let b = self.0[1];
         let c = self.0[2];
-        -(-c / b).exp() * ((a) * (c / b).exp() - (x / b).exp())
+        let d = self.0[3];
+        -(-c / b).exp() * (a * d * (c / b).exp() - (x / b).exp()) / d
     }
     fn name(&self) -> &str {
         "log"
+    }
+}
+
+impl CreateFitFn for OptimizedLog {
+    fn new(params: Vec<f64>) -> Self {
+        Self(params)
     }
 }
 

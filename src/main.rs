@@ -27,7 +27,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .iter()
             .max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
             .unwrap();
-        //let data: Vec<f64> = data.iter().map(|x| x / max).collect();
+        let data: Vec<f64> = data.iter().map(|x| x / max).collect();
         dbg!(max);
         //let data = autoquant::generate_normal_distribution(3.0, 1.1, 1000);
         //data.iter_mut().for_each(|x| *x = x.abs());

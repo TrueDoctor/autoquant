@@ -5,6 +5,8 @@ use rand::distributions::Distribution;
 #[cfg(feature = "generation")]
 use statrs::distribution::Normal;
 
+pub mod sum;
+
 pub fn integrate_distribution(mut distribution: Vec<f64>) -> Vec<(f64, f64)> {
     distribution.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
     let mut result = Vec::with_capacity(distribution.len());
@@ -24,8 +26,12 @@ pub fn drop_duplicates(distribution: &mut Vec<(f64, f64)>) {
 }
 
 pub fn normalize_distribution(distribution: &[(f64, f64)]) -> Vec<(f64, f64)> {
-    let max = distribution.last().unwrap().1;
-    distribution.iter().map(|&(x, y)| (x, y / max)).collect()
+    let max_y = distribution.last().unwrap().1;
+    let max_x = distribution.last().unwrap().0;
+    distribution
+        .iter()
+        .map(|&(x, y)| (x / max_x, y / max_y))
+        .collect()
 }
 
 #[cfg(feature = "generation")]
@@ -57,10 +63,10 @@ pub fn calculate_sampled_error(distribution: &[f64], fit: &dyn FitFn, samples: u
     for sample in distribution {
         let encoded = encode(*sample, fit, samples);
         let decoded = decode(encoded, fit, samples);
-        let error = (decoded - sample).powi(2) * sample.ln();
+        let error = (decoded / sample).abs();
         sumerror += error;
     }
-    sumerror / distribution.len() as f64
+    (sumerror - distribution.len() as f64).abs()
 }
 
 pub fn inverse_of_distribution(distribution: &[(f64, f64)], y: f64) -> f64 {
@@ -99,6 +105,11 @@ pub trait FitFn {
     fn function(&self, x: f64) -> f64;
     fn inverse(&self, x: f64) -> f64;
     fn name(&self) -> &str;
+}
+pub trait CreateFitFn: FitFn + Sized {
+    fn new(params: Vec<f64>) -> Self {
+        unimplemented!()
+    }
 }
 
 pub struct SimpleFitFn<F: Fn(f64) -> f64, I: Fn(f64) -> f64> {
@@ -145,7 +156,7 @@ pub fn fit_functions(dist: Dist) -> Vec<Box<dyn FitFn>> {
         }),
         Box::new(models::VarPro::<PowerTwo>::new(dist.clone())),
         //Box::new(models::VarPro::<Log>::new(dist)),
-        Box::new(models::OptimizedLog::new(dist, 20)),
+        Box::new(models::OptimizedLog::new(dist, 100)),
         /*
         SimpleFitFn {
             function: |x| x.sqrt(),
