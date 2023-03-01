@@ -186,6 +186,10 @@ impl OptimizedLog {
         log::debug!("params: {:?}", params);
         Self(params)
     }
+
+    pub fn parameters(&self) -> &[f64] {
+        &self.0
+    }
 }
 
 impl FitFn for OptimizedLog {
