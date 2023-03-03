@@ -135,7 +135,7 @@ impl<T: CreateFitFn> CostFunction for Fit<T> {
     type Output = f64;
 
     fn cost(&self, param: &Self::Param) -> Result<Self::Output, Error> {
-        println!("{:?}", param);
+        //println!("{:?}", param);
         let iter = self.0.windows(2).map(|window| {
             let [(_, y), (x, yn)]  = window else { unreachable!() } ;
             let log = T::new(param.clone());
@@ -154,7 +154,7 @@ impl<T: CreateFitFn> CostFunction for Fit<T> {
             error
         });
         let sum = crate::sum::Sum::from_iter(iter).sum();
-        println!("sum: {}", sum);
+        //println!("sum: {}", sum);
         Ok(sum)
     }
 }
