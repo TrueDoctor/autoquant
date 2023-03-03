@@ -1,3 +1,4 @@
+// credit: https://github.com/rust-num/num/issues/309
 pub struct Sum {
     partials: Vec<f64>,
 }
