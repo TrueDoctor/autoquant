@@ -177,8 +177,8 @@ impl OptimizedLog {
         //println!("dist: {:?}", dist);
         let fit: Fit<OptimizedLog> = Fit::new(dist, quantization);
         let executor = argmin::core::Executor::new(fit, nm)
-            .configure(|state| state.max_iters(500))
-            .add_observer(SlogLogger::term(), ObserverMode::Every(100));
+            .configure(|state| state.max_iters(1000))
+            .add_observer(SlogLogger::term(), ObserverMode::Every(200));
         let res = executor.run().unwrap();
         let params = res.state().best_param.clone().unwrap();
         println!("Result: {:?}", res.state().best_cost);
