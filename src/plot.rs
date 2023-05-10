@@ -7,7 +7,7 @@ pub fn plot_histogram(
     data: &[(f64, f64)],
     fits: &[&dyn FitFn],
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let root = SVGBackend::new(OUT_FILE_NAME, (1920, 1080)).into_drawing_area();
+    let root = SVGBackend::new(OUT_FILE_NAME, (800, 600)).into_drawing_area();
 
     root.fill(&WHITE)?;
     let minx = data.first().expect("No data").0;
@@ -19,7 +19,7 @@ pub fn plot_histogram(
         .x_label_area_size(35)
         .y_label_area_size(80)
         .margin(5)
-        .caption("Integrated normal distribution", ("sans-serif", 50.0))
+        .caption("CDF approximation", ("sans-serif", 40.0))
         .build_cartesian_2d(minx..maxx, miny..maxy)?;
 
     chart
@@ -33,11 +33,11 @@ pub fn plot_histogram(
 
     chart
         .draw_series(LineSeries::new(data.iter().map(|(x, y)| (*x, *y)), RED))?
-        .label("CDF")
+        .label("Target")
         .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], RED));
 
     for (i, fit) in fits.iter().enumerate() {
-        let color = Palette99::pick(i + 1);
+        let color = Palette99::pick(i + 3);
         let fit_data = data
             .iter()
             .map(|&(x, _)| (x, fit.function(x)))

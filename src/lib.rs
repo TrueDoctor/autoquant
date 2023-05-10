@@ -154,7 +154,7 @@ pub fn fit_functions(dist: Dist) -> Vec<Box<dyn FitFn>> {
             inverse: move |x| x * max,
             name: "identity",
         }),
-        Box::new(models::VarPro::<PowerTwo>::new(dist.clone())),
+        //Box::new(models::VarPro::<PowerTwo>::new(dist.clone())),
         //Box::new(models::VarPro::<Log>::new(dist)),
         Box::new(models::OptimizedLog::new(dist, 100)),
         /*
