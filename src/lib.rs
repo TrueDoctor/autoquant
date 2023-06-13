@@ -61,7 +61,7 @@ pub fn decode(value: u64, fit: &dyn FitFn, samples: u64) -> f64 {
     fit.inverse(x)
 }
 
-pub fn distribution_error<T: FitFn>(data: &Dist, fun: T, quantization: u64) -> f64 {
+pub fn distribution_error<T: FitFn>(data: &[(f64, f64)], fun: T, quantization: u64) -> f64 {
     let iter = data.windows(2).map(|window| {
         let &[(x, y), (_x_, yn)] = window else {unreachable!()};
         let encoded = encode(x, &fun, quantization);
@@ -181,23 +181,40 @@ pub fn calculate_error_functions(train: &Dist, test: &Dist) -> (Vec<String>, Vec
     ];
     let mut errors = (0..names.len()).map(|_| Vec::new()).collect::<Vec<_>>();
 
-    for bits in 0..16 {
-        let levels = 1 << bits;
-        for (i, fn_) in fit_functions(train.clone(), levels).iter().enumerate() {
-            let error = distribution_error(test, fn_.as_ref(), levels);
-            errors[i].push(error);
-        }
+    for i in 0..names.len() {
+        errors[i] = calculate_error_function(train, i, test);
     }
     (names, errors)
+}
+
+pub fn calculate_error_function(train: &[(f64, f64)], i: usize, test: &[(f64, f64)]) -> Vec<f64> {
+    let mut errors = Vec::with_capacity(16);
+    for bits in 0..16 {
+        let levels = 1 << bits;
+        let fn_ = fit_function(train.to_vec(), levels, i);
+        let error = distribution_error(test, fn_.as_ref(), levels);
+        errors.push(error);
+    }
+    errors
 }
 #[cfg(feature = "fitting")]
 pub fn fit_functions(dist: Dist, levels: u64) -> Vec<Box<dyn FitFn>> {
     vec![
-        Box::new(models::OptimizedLin::new(dist.clone(), levels)),
-        Box::new(models::OptimizedLog::new(dist.clone(), levels)),
-        Box::new(models::OptimizedPow::new(dist.clone(), levels)),
-        Box::new(models::OptimizedExp::new(dist, levels)),
+        fit_function(dist.clone(), levels, 0),
+        fit_function(dist.clone(), levels, 1),
+        fit_function(dist.clone(), levels, 2),
+        fit_function(dist, levels, 3),
     ]
+}
+#[cfg(feature = "fitting")]
+pub fn fit_function(dist: Dist, levels: u64, index: usize) -> Box<dyn FitFn> {
+    match index {
+        0 => Box::new(models::OptimizedLin::new(dist, levels)),
+        1 => Box::new(models::OptimizedLog::new(dist, levels)),
+        2 => Box::new(models::OptimizedPow::new(dist, levels)),
+        3 => Box::new(models::OptimizedExp::new(dist, levels)),
+        _ => panic!("Unknown fit function"),
+    }
 }
 
 pub fn linearize_distribution(distribution: &[(f64, f64)], fit: &impl FitFn) -> Vec<(f64, f64)> {

@@ -3,13 +3,13 @@ use std::{
     ops::{Deref, Index, IndexMut},
 };
 
-pub const BUCKET_SIZE: usize = 8;
-pub type Function = [f32; BUCKET_SIZE];
+pub const BUCKET_SIZE: usize = 16;
+pub type Function = [f64; BUCKET_SIZE];
 
 #[derive(Clone, Debug)]
 pub struct ErrorFunction<'a> {
     index: usize,
-    function: Cow<'a, [f32; BUCKET_SIZE]>,
+    function: Cow<'a, [f64; BUCKET_SIZE]>,
     bits: Cow<'a, [Vec<usize>; BUCKET_SIZE]>,
 }
 
@@ -22,14 +22,14 @@ impl<'a> Deref for ErrorFunction<'a> {
 }
 
 impl<'a> Index<usize> for ErrorFunction<'a> {
-    type Output = f32;
+    type Output = f64;
 
     fn index(&self, index: usize) -> &Self::Output {
         &self.function[index]
     }
 }
 impl<'a> Index<isize> for ErrorFunction<'a> {
-    type Output = f32;
+    type Output = f64;
 
     fn index(&self, index: isize) -> &Self::Output {
         if index < 0 {
@@ -47,10 +47,11 @@ impl<'a> IndexMut<usize> for ErrorFunction<'a> {
 }
 
 impl<'a> ErrorFunction<'a> {
-    pub fn new(function: &Function) -> ErrorFunction {
+    pub fn new(function: &[f64]) -> ErrorFunction {
+        let mut fn_iter = function.iter();
         ErrorFunction {
             index: 0,
-            function: Cow::Borrowed(function),
+            function: Cow::Owned(core::array::from_fn(|_| *fn_iter.next().unwrap())),
             bits: Default::default(),
         }
     }
@@ -70,7 +71,8 @@ impl<'a> ErrorFunction<'a> {
 
     pub fn push(&mut self, first: &Self, second: &Self) {
         // use dynamic programming to merge the error functions
-        let mut min = f32::MAX;
+        let mut min = f64::MAX;
+        self.bits.to_mut()[self.index] = first.bits.as_ref()[self.index].clone();
         let mut first_bits = self.index;
         for i in 0..=self.index {
             //println!("{} {}", i, self.index - i);

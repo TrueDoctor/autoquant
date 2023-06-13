@@ -1,7 +1,7 @@
 use autoquant::plot::{plot_channels, plot_errors};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let first = autoquant::packing::ErrorFunction::new(&[1.0, 0.8, 0.6, 0.4, 0.4, 0.1, 0.1, 0.1]);
+    /*let first = autoquant::packing::ErrorFunction::new(&[1.0, 0.8, 0.6, 0.4, 0.4, 0.1, 0.1, 0.1]);
     let second = autoquant::packing::ErrorFunction::new(&[1.0, 0.9, 0.8, 0.8, 0.3, 0.2, 0.1, 0.0]);
     let third = autoquant::packing::ErrorFunction::new(&[1.0, 1.0, 1.0, 1.0, 1.0, 0.2, 0.0, 0.0]);
 
@@ -10,7 +10,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let merged = autoquant::packing::merge_error_functions(&merged, &third);
     println!("Merged: {:?}", merged);
-    let diagram = Diagram::ErrorDistribution;
+    */
+    let diagram = Diagram::CombinedErrorFunction;
 
     #[cfg(feature = "plotting")]
     {
@@ -66,6 +67,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let red = create_distribution(data.clone(), data.len(), 0);
                 let green = create_distribution(data.clone(), data.len(), 1);
                 let blue = create_distribution(data.clone(), data.len(), 2);
+                let fit_red = autoquant::calculate_error_function(&red, 2, &red);
+                let fit_green = autoquant::calculate_error_function(&green, 2, &green);
+                let fit_blue = autoquant::calculate_error_function(&blue, 2, &blue);
+                let red_error = autoquant::packing::ErrorFunction::new(fit_red.as_slice());
+                let green_error = autoquant::packing::ErrorFunction::new(fit_green.as_slice());
+                let blue_error = autoquant::packing::ErrorFunction::new(fit_blue.as_slice());
+                let merged = autoquant::packing::merge_error_functions(&red_error, &green_error);
+                println!("Merged: {:?}", merged);
+                let merged = autoquant::packing::merge_error_functions(&merged, &blue_error);
+                println!("Merged: {:?}", merged);
                 return plot_channels(&[&red, &green, &blue]);
             }
         }
