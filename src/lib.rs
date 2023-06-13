@@ -1,5 +1,3 @@
-use nalgebra::Scalar;
-use num::traits::Float;
 #[cfg(feature = "generation")]
 use rand::distributions::Distribution;
 #[cfg(feature = "generation")]
@@ -63,15 +61,26 @@ pub fn decode(value: u64, fit: &dyn FitFn, samples: u64) -> f64 {
     fit.inverse(x)
 }
 
-pub fn calculate_sampled_error(distribution: &[f64], fit: &dyn FitFn, samples: u64) -> f64 {
-    let mut sumerror = 0.0;
-    for sample in distribution {
-        let encoded = encode(*sample, fit, samples);
-        let decoded = decode(encoded, fit, samples);
-        let error = (decoded / sample).abs();
-        sumerror += error;
-    }
-    (sumerror - distribution.len() as f64).abs()
+pub fn distribution_error<T: FitFn>(data: &Dist, fun: T, quantization: u64) -> f64 {
+    let iter = data.windows(2).map(|window| {
+        let &[(x, y), (_x_, yn)] = window else {unreachable!()};
+        let encoded = encode(x, &fun, quantization);
+        let decoded = decode(encoded, &fun, quantization);
+
+        let _weight = |x: f64| (x * 10. + 1.).ln();
+        let error = (decoded - x).powi(2) * (yn - y);
+        assert!(
+            error.is_finite(),
+            "encontered non-finite error {} for encoded value {}, decoded value {}, x: {}",
+            error,
+            encoded,
+            decoded,
+            encoded as f64 / quantization as f64,
+        );
+        error
+    });
+
+    crate::sum::Sum::from_iter(iter).sum()
 }
 
 pub fn inverse_of_distribution(distribution: &[(f64, f64)], y: f64) -> f64 {
@@ -111,8 +120,32 @@ pub trait FitFn {
     fn inverse(&self, x: f64) -> f64;
     fn name(&self) -> &str;
 }
+
+impl<T: FitFn> FitFn for &T {
+    fn function(&self, x: f64) -> f64 {
+        (*self).function(x)
+    }
+    fn inverse(&self, x: f64) -> f64 {
+        (*self).inverse(x)
+    }
+    fn name(&self) -> &str {
+        (*self).name()
+    }
+}
+impl FitFn for &dyn FitFn {
+    fn function(&self, x: f64) -> f64 {
+        (*self).function(x)
+    }
+    fn inverse(&self, x: f64) -> f64 {
+        (*self).inverse(x)
+    }
+    fn name(&self) -> &str {
+        (*self).name()
+    }
+}
+
 pub trait CreateFitFn: FitFn + Sized {
-    fn new(params: Vec<f64>) -> Self {
+    fn new(_params: Vec<f64>) -> Self {
         unimplemented!()
     }
 }
@@ -125,8 +158,6 @@ pub struct SimpleFitFn<F: Fn(f64) -> f64, I: Fn(f64) -> f64> {
 
 #[cfg(feature = "fitting")]
 pub mod models;
-#[cfg(feature = "fitting")]
-use models::*;
 
 impl<F: Fn(f64) -> f64, I: Fn(f64) -> f64> FitFn for SimpleFitFn<F, I> {
     fn function(&self, x: f64) -> f64 {
@@ -141,73 +172,31 @@ impl<F: Fn(f64) -> f64, I: Fn(f64) -> f64> FitFn for SimpleFitFn<F, I> {
 }
 
 #[cfg(feature = "fitting")]
-pub fn calculate_error_functions(
-    dist: Dist,
-    evaluation_data: &[f64],
-) -> (Vec<String>, Vec<Vec<f64>>) {
-    let names = vec!["linear".to_string(), "log".to_string(), "pow".to_string()];
+pub fn calculate_error_functions(train: &Dist, test: &Dist) -> (Vec<String>, Vec<Vec<f64>>) {
+    let names = vec![
+        "exp".to_string(),
+        "log".to_string(),
+        "linear".to_string(),
+        "pow".to_string(),
+    ];
     let mut errors = (0..names.len()).map(|_| Vec::new()).collect::<Vec<_>>();
-    let fns = move |levels| -> Vec<Box<dyn FitFn + 'static>> {
-        vec![
-            Box::new(models::OptimizedLin::new(dist.clone(), levels)),
-            Box::new(models::OptimizedLog::new(dist.clone(), levels)),
-            Box::new(models::OptimizedPow::new(dist.clone(), levels)),
-        ]
-    };
-    let fns_ref = &fns;
-    for bits in 0..(1 << 8) {
-        let levels = bits + 1;
-        for (i, fn_) in fns_ref(levels).iter().enumerate() {
-            let error = calculate_sampled_error(evaluation_data, fn_.as_ref(), levels);
+
+    for bits in 0..16 {
+        let levels = 1 << bits;
+        for (i, fn_) in fit_functions(train.clone(), levels).iter().enumerate() {
+            let error = distribution_error(test, fn_.as_ref(), levels);
             errors[i].push(error);
         }
     }
     (names, errors)
 }
 #[cfg(feature = "fitting")]
-pub fn fit_functions(dist: Dist) -> Vec<Box<dyn FitFn>> {
-    let max = dist.last().unwrap().0;
+pub fn fit_functions(dist: Dist, levels: u64) -> Vec<Box<dyn FitFn>> {
     vec![
-        /*SimpleFitFn {
-            function: |x| x,
-            inverse: |x| x,
-            name: "identity",
-        },*/ /*
-           SimpleFitFn {
-               function: |x| 1. / x,
-               inverse: |x| 1. / x,
-               name: "inverse",
-           },*/
-        Box::new(SimpleFitFn {
-            function: move |x| x / max,
-            inverse: move |x| x * max,
-            name: "identity",
-        }),
-        //Box::new(models::VarPro::<PowerTwo>::new(dist.clone())),
-        //Box::new(models::VarPro::<Log>::new(dist)),
-        Box::new(models::OptimizedLog::new(dist.clone(), 100)),
-        Box::new(models::OptimizedPow::new(dist, 100)),
-        /*
-        SimpleFitFn {
-            function: |x| x.sqrt(),
-            inverse: |x| x.powi(2),
-            name: "sqrt",
-        },
-        SimpleFitFn {
-            function: |x| x.powi(3),
-            inverse: |x| x.powf(1. / 3.),
-            name: "power 3",
-        },
-        SimpleFitFn {
-            function: |x| x.ln(),
-            inverse: |x| x.exp(),
-            name: "ln",
-        },
-        SimpleFitFn {
-            function: |x| x.exp(),
-            inverse: |x| x.ln(),
-            name: "exp",
-        },*/
+        Box::new(models::OptimizedLin::new(dist.clone(), levels)),
+        Box::new(models::OptimizedLog::new(dist.clone(), levels)),
+        Box::new(models::OptimizedPow::new(dist.clone(), levels)),
+        Box::new(models::OptimizedExp::new(dist, levels)),
     ]
 }
 
@@ -216,7 +205,6 @@ pub fn linearize_distribution(distribution: &[(f64, f64)], fit: &impl FitFn) -> 
         .iter()
         .map(|&(x, y)| (x, fit.inverse(y)))
         .collect();
-    //normalize_distribution(&mapped_distribution)
     mapped_distribution
 }
 

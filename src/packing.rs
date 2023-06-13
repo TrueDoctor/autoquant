@@ -10,6 +10,7 @@ pub type Function = [f32; BUCKET_SIZE];
 pub struct ErrorFunction<'a> {
     index: usize,
     function: Cow<'a, [f32; BUCKET_SIZE]>,
+    bits: Cow<'a, [Vec<usize>; BUCKET_SIZE]>,
 }
 
 impl<'a> Deref for ErrorFunction<'a> {
@@ -50,12 +51,14 @@ impl<'a> ErrorFunction<'a> {
         ErrorFunction {
             index: 0,
             function: Cow::Borrowed(function),
+            bits: Default::default(),
         }
     }
     pub fn empty() -> ErrorFunction<'static> {
         ErrorFunction {
             index: 0,
             function: Cow::Owned([-1.0; BUCKET_SIZE]),
+            bits: Default::default(),
         }
     }
     pub fn len(&self) -> usize {
@@ -68,15 +71,18 @@ impl<'a> ErrorFunction<'a> {
     pub fn push(&mut self, first: &Self, second: &Self) {
         // use dynamic programming to merge the error functions
         let mut min = f32::MAX;
+        let mut first_bits = self.index;
         for i in 0..=self.index {
             //println!("{} {}", i, self.index - i);
             let error = first[i] + second[self.index - i];
             if error < min {
                 min = error;
+                first_bits = i;
             }
         }
         let index = self.index;
         self[index] = min;
+        self.bits.to_mut()[index].push(first_bits);
         self.index += 1;
     }
 }
