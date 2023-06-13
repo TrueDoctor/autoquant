@@ -7,6 +7,8 @@ use statrs::distribution::Normal;
 
 pub mod sum;
 
+pub mod packing;
+
 pub fn integrate_distribution(mut distribution: Vec<f64>) -> Vec<(f64, f64)> {
     distribution.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
     let mut result = Vec::with_capacity(distribution.len());
@@ -49,16 +51,19 @@ pub fn generate_normal_distribution(
     result
 }
 
-pub fn encode(value: f64, fit: &dyn FitFn, samples: u32) -> u64 {
+pub fn encode(value: f64, fit: &dyn FitFn, samples: u64) -> u64 {
     let mapped_value = fit.function(value);
+    assert!(!mapped_value.is_nan(), "mapped value is NaN");
     let normalized = mapped_value.clamp(0., 1.);
     (normalized * samples as f64) as u64
 }
-pub fn decode(value: u64, fit: &dyn FitFn, samples: u32) -> f64 {
-    fit.inverse(value as f64 / samples as f64)
+pub fn decode(value: u64, fit: &dyn FitFn, samples: u64) -> f64 {
+    let x = value as f64 / samples as f64;
+    assert!(x.is_finite(), "x is not finite");
+    fit.inverse(x)
 }
 
-pub fn calculate_sampled_error(distribution: &[f64], fit: &dyn FitFn, samples: u32) -> f64 {
+pub fn calculate_sampled_error(distribution: &[f64], fit: &dyn FitFn, samples: u64) -> f64 {
     let mut sumerror = 0.0;
     for sample in distribution {
         let encoded = encode(*sample, fit, samples);
@@ -136,6 +141,30 @@ impl<F: Fn(f64) -> f64, I: Fn(f64) -> f64> FitFn for SimpleFitFn<F, I> {
 }
 
 #[cfg(feature = "fitting")]
+pub fn calculate_error_functions(
+    dist: Dist,
+    evaluation_data: &[f64],
+) -> (Vec<String>, Vec<Vec<f64>>) {
+    let names = vec!["linear".to_string(), "log".to_string(), "pow".to_string()];
+    let mut errors = (0..names.len()).map(|_| Vec::new()).collect::<Vec<_>>();
+    let fns = move |levels| -> Vec<Box<dyn FitFn + 'static>> {
+        vec![
+            Box::new(models::OptimizedLin::new(dist.clone(), levels)),
+            Box::new(models::OptimizedLog::new(dist.clone(), levels)),
+            Box::new(models::OptimizedPow::new(dist.clone(), levels)),
+        ]
+    };
+    let fns_ref = &fns;
+    for bits in 0..(1 << 8) {
+        let levels = bits + 1;
+        for (i, fn_) in fns_ref(levels).iter().enumerate() {
+            let error = calculate_sampled_error(evaluation_data, fn_.as_ref(), levels);
+            errors[i].push(error);
+        }
+    }
+    (names, errors)
+}
+#[cfg(feature = "fitting")]
 pub fn fit_functions(dist: Dist) -> Vec<Box<dyn FitFn>> {
     let max = dist.last().unwrap().0;
     vec![
@@ -156,7 +185,8 @@ pub fn fit_functions(dist: Dist) -> Vec<Box<dyn FitFn>> {
         }),
         //Box::new(models::VarPro::<PowerTwo>::new(dist.clone())),
         //Box::new(models::VarPro::<Log>::new(dist)),
-        Box::new(models::OptimizedLog::new(dist, 100)),
+        Box::new(models::OptimizedLog::new(dist.clone(), 100)),
+        Box::new(models::OptimizedPow::new(dist, 100)),
         /*
         SimpleFitFn {
             function: |x| x.sqrt(),

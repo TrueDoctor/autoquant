@@ -66,3 +66,55 @@ pub fn plot_histogram(
 
     Ok(())
 }
+
+pub fn plot_errors(data: &[Vec<f64>], names: &[String]) -> Result<(), Box<dyn std::error::Error>> {
+    let root = SVGBackend::new(OUT_FILE_NAME, (800, 600)).into_drawing_area();
+
+    root.fill(&WHITE)?;
+    let minx = 0.;
+    let maxx = data[0].len() as f64;
+    let miny = 0.;
+    let maxy = data
+        .iter()
+        .map(|x| x.iter().cloned().fold(0., f64::max))
+        .fold(0., f64::max);
+
+    let mut chart = ChartBuilder::on(&root)
+        .x_label_area_size(35)
+        .y_label_area_size(80)
+        .margin(5)
+        .caption("CDF approximation", ("sans-serif", 40.0))
+        .build_cartesian_2d(minx..maxx, miny..maxy)?;
+
+    chart
+        .configure_mesh()
+        .disable_x_mesh()
+        .bold_line_style(WHITE.mix(0.3))
+        .y_desc("Relative Error")
+        .x_desc("Number of bits")
+        .axis_desc_style(("sans-serif", 15))
+        .draw()?;
+
+    for (i, data) in data.iter().enumerate() {
+        let color = Palette99::pick(i + 3);
+        chart
+            .draw_series(LineSeries::new(
+                data.iter().cloned().enumerate().map(|(x, y)| (x as f64, y)),
+                &color,
+            ))?
+            .label(&names[i])
+            .legend(move |(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &color));
+    }
+
+    chart
+        .configure_series_labels()
+        .background_style(WHITE.mix(0.8))
+        .border_style(BLACK)
+        .draw()?;
+
+    // To avoid the IO failure being ignored silently, we manually call the present function
+    root.present().expect("Unable to write result to file, please make sure 'plotters-doc-data' dir exists under current dir");
+    println!("Result has been saved to {}", OUT_FILE_NAME);
+
+    Ok(())
+}
