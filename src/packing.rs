@@ -3,63 +3,59 @@ use std::{
     ops::{Deref, Index, IndexMut},
 };
 
-pub const BUCKET_SIZE: usize = 16;
+pub const BUCKET_SIZE: usize = 32;
 pub type Function = [f64; BUCKET_SIZE];
 
 #[derive(Clone, Debug)]
-pub struct ErrorFunction<'a> {
+pub struct ErrorFunction<'a, const N: usize> {
     index: usize,
-    function: Cow<'a, [f64; BUCKET_SIZE]>,
-    bits: Cow<'a, [Vec<usize>; BUCKET_SIZE]>,
+    function: Cow<'a, [f64; N]>,
+    pub bits: Cow<'a, [Vec<usize>; N]>,
 }
 
-impl<'a> Deref for ErrorFunction<'a> {
-    type Target = Function;
+impl<'a, const N: usize> Deref for ErrorFunction<'a, N> {
+    type Target = [f64; N];
 
     fn deref(&self) -> &Self::Target {
         &self.function
     }
 }
 
-impl<'a> Index<usize> for ErrorFunction<'a> {
+impl<'a, const N: usize> Index<usize> for ErrorFunction<'a, N> {
     type Output = f64;
 
     fn index(&self, index: usize) -> &Self::Output {
-        &self.function[index]
+        &self.function[index.min(N - 1)]
     }
 }
-impl<'a> Index<isize> for ErrorFunction<'a> {
+impl<'a, const N: usize> Index<isize> for ErrorFunction<'a, N> {
     type Output = f64;
 
     fn index(&self, index: isize) -> &Self::Output {
-        if index < 0 {
-            &0.
-        } else {
-            &self.function[index as usize]
-        }
+        &self.function[(index.max(0) as usize).min(N - 1)]
     }
 }
 
-impl<'a> IndexMut<usize> for ErrorFunction<'a> {
+impl<'a, const N: usize> IndexMut<usize> for ErrorFunction<'a, N> {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        &mut self.function.to_mut()[index]
+        &mut self.function.to_mut()[index.min(N - 1)]
     }
 }
 
-impl<'a> ErrorFunction<'a> {
-    pub fn new(function: &[f64]) -> ErrorFunction {
+impl<'a, const N: usize> ErrorFunction<'a, N> {
+    pub fn new(function: &[f64]) -> ErrorFunction<N> {
         let mut fn_iter = function.iter();
         ErrorFunction {
             index: 0,
             function: Cow::Owned(core::array::from_fn(|_| *fn_iter.next().unwrap())),
-            bits: Default::default(),
+            bits: Cow::Owned(core::array::from_fn(|x| vec![x])),
         }
     }
-    pub fn empty() -> ErrorFunction<'static> {
+    pub fn empty() -> ErrorFunction<'static, N> {
         ErrorFunction {
             index: 0,
-            function: Cow::Owned([-1.0; BUCKET_SIZE]),
-            bits: Default::default(),
+            function: Cow::Owned([-1.0; N]),
+            bits: Cow::Owned(core::array::from_fn(|x| vec![x])),
         }
     }
     pub fn len(&self) -> usize {
@@ -69,10 +65,13 @@ impl<'a> ErrorFunction<'a> {
         self.function.is_empty()
     }
 
-    pub fn push(&mut self, first: &Self, second: &Self) {
+    pub fn push<const A: usize, const B: usize>(
+        &mut self,
+        first: &ErrorFunction<'a, A>,
+        second: &ErrorFunction<'a, B>,
+    ) {
         // use dynamic programming to merge the error functions
         let mut min = f64::MAX;
-        self.bits.to_mut()[self.index] = first.bits.as_ref()[self.index].clone();
         let mut first_bits = self.index;
         for i in 0..=self.index {
             //println!("{} {}", i, self.index - i);
@@ -84,18 +83,19 @@ impl<'a> ErrorFunction<'a> {
         }
         let index = self.index;
         self[index] = min;
-        self.bits.to_mut()[index].push(first_bits);
+        self.bits.to_mut()[index] = first.bits.as_ref()[first_bits].clone();
+        self.bits.to_mut()[index].push(self.index - first_bits);
         self.index += 1;
     }
 }
 
-pub fn merge_error_functions<'a>(
-    first: &ErrorFunction<'a>,
-    second: &ErrorFunction<'a>,
-) -> ErrorFunction<'a> {
+pub fn merge_error_functions<'a, const N: usize, const M: usize, const O: usize>(
+    first: &ErrorFunction<'a, N>,
+    second: &ErrorFunction<'a, M>,
+) -> ErrorFunction<'a, O> {
     let mut combined = ErrorFunction::empty();
     // use dynamic programming to merge the error functions
-    for _ in 0..first.len() {
+    for _ in 0..O {
         combined.push(first, second);
     }
     combined

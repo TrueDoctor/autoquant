@@ -189,7 +189,7 @@ pub fn calculate_error_functions(train: &Dist, test: &Dist) -> (Vec<String>, Vec
 
 pub fn calculate_error_function(train: &[(f64, f64)], i: usize, test: &[(f64, f64)]) -> Vec<f64> {
     let mut errors = Vec::with_capacity(16);
-    for bits in 0..16 {
+    for bits in 0..12 {
         let levels = 1 << bits;
         let fn_ = fit_function(train.to_vec(), levels, i);
         let error = distribution_error(test, fn_.as_ref(), levels);

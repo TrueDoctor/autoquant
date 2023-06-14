@@ -1,4 +1,7 @@
-use autoquant::plot::{plot_channels, plot_errors};
+use autoquant::{
+    packing::ErrorFunction,
+    plot::{plot_channels, plot_errors, plot_errors_with_bits},
+};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     /*let first = autoquant::packing::ErrorFunction::new(&[1.0, 0.8, 0.6, 0.4, 0.4, 0.1, 0.1, 0.1]);
@@ -70,14 +73,33 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let fit_red = autoquant::calculate_error_function(&red, 2, &red);
                 let fit_green = autoquant::calculate_error_function(&green, 2, &green);
                 let fit_blue = autoquant::calculate_error_function(&blue, 2, &blue);
-                let red_error = autoquant::packing::ErrorFunction::new(fit_red.as_slice());
-                let green_error = autoquant::packing::ErrorFunction::new(fit_green.as_slice());
-                let blue_error = autoquant::packing::ErrorFunction::new(fit_blue.as_slice());
-                let merged = autoquant::packing::merge_error_functions(&red_error, &green_error);
+                let red_error: ErrorFunction<10> =
+                    autoquant::packing::ErrorFunction::new(fit_red.as_slice());
+                let green_error: ErrorFunction<10> =
+                    autoquant::packing::ErrorFunction::new(fit_green.as_slice());
+                let blue_error: ErrorFunction<10> =
+                    autoquant::packing::ErrorFunction::new(fit_blue.as_slice());
+                let merged: ErrorFunction<24> =
+                    autoquant::packing::merge_error_functions(&red_error, &green_error);
                 println!("Merged: {:?}", merged);
-                let merged = autoquant::packing::merge_error_functions(&merged, &blue_error);
+                let merged: ErrorFunction<32> =
+                    autoquant::packing::merge_error_functions(&merged, &blue_error);
                 println!("Merged: {:?}", merged);
-                return plot_channels(&[&red, &green, &blue]);
+                let red_bits = merged.bits.iter().map(|x| x[0]).collect::<Vec<_>>();
+                let green_bits = merged.bits.iter().map(|x| x[1]).collect::<Vec<_>>();
+                let blue_bits = merged.bits.iter().map(|x| x[2]).collect::<Vec<_>>();
+                println!("Red bits: {:?}", red_bits);
+                println!("Green bits: {:?}", green_bits);
+                println!("Blue bits: {:?}", blue_bits);
+                return plot_errors_with_bits(
+                    &[fit_red, fit_green, fit_blue][..],
+                    &[
+                        red_bits.as_slice(),
+                        green_bits.as_slice(),
+                        blue_bits.as_slice(),
+                    ][..],
+                    &["red".to_string(), "green".to_string(), "blue".to_string()][..],
+                );
             }
         }
     }
