@@ -115,6 +115,9 @@ impl OptimizedPow {
         log::debug!("params: {:?}", params);
         Self(params)
     }
+    pub fn parameters(&self) -> &[f64] {
+        &self.0
+    }
 }
 
 impl FitFn for OptimizedPow {
@@ -166,6 +169,9 @@ impl OptimizedLin {
         log::debug!("params: {:?}", params);
         Self(params)
     }
+    pub fn parameters(&self) -> &[f64] {
+        &self.0
+    }
 }
 
 impl FitFn for OptimizedLin {
@@ -215,6 +221,9 @@ impl OptimizedExp {
         println!("params: {:?}", params);
         log::debug!("params: {:?}", params);
         Self(params)
+    }
+    pub fn parameters(&self) -> &[f64] {
+        &self.0
     }
 }
 
