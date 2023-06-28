@@ -14,7 +14,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let merged = autoquant::packing::merge_error_functions(&merged, &third);
     println!("Merged: {:?}", merged);
     */
-    let diagram = Diagram::CombinedErrorFunction;
+    let diagram = Diagram::Cdf;
 
     #[cfg(feature = "plotting")]
     {
@@ -35,8 +35,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
         let len = data.len();
-        let dist = create_distribution(data.clone(), 100000, 3);
-        let full_dist = create_distribution(data.clone(), len, 3);
+        let dist = create_distribution(data.clone(), 100000, 0);
+        let full_dist = create_distribution(data.clone(), len, 0);
 
         match diagram {
             Diagram::Cdf => {
