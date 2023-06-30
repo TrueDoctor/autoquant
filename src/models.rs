@@ -160,7 +160,7 @@ impl OptimizedLin {
         //println!("dist: {:?}", dist);
         let fit: Fit<OptimizedLin> = Fit::new(dist, quantization);
         let executor = argmin::core::Executor::new(fit, nm)
-            .configure(|state| state.max_iters(500))
+            .configure(|state| state.max_iters(1000))
             .add_observer(SlogLogger::term(), ObserverMode::Every(200));
         let res = executor.run().unwrap();
         let params = res.state().best_param.clone().unwrap();

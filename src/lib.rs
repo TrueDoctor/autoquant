@@ -55,23 +55,24 @@ pub fn encode(value: f64, fit: &dyn FitFn, samples: u64) -> u64 {
     (mapped_value * samples as f64).clamp(0., samples as f64) as u64
 }
 pub fn decode(value: u64, fit: &dyn FitFn, samples: u64) -> f64 {
-    let x = value as f64 / samples as f64;
-    assert!(x.is_finite(), "x is not finite");
+    let mut x = value as f64 / samples as f64;
+    if !x.is_finite() {
+        x = 0.;
+    }
     fit.inverse(x)
 }
 
 pub fn distribution_error<T: FitFn>(data: &[(f64, f64)], fun: T, quantization: u64) -> f64 {
-    let iter = data.windows(2).map(|window| {
-        let &[(x, y), (_x_, yn)] = window else {unreachable!()};
+    let mut last_y = 0.;
+    let iter = data.iter().map(|&(x, y)| {
         let encoded = encode(x, &fun, quantization);
         let decoded = decode(encoded, &fun, quantization);
 
-        let _weight = |x: f64| (x * 10. + 1.).ln();
-        let error = (decoded - x).powi(2) * (yn - y);
-        println!(
-            "x: {}, y: {}, encoded: {}, decoded: {}, error: {}",
-            x, y, encoded, decoded, error
-        );
+        let weight = |x: f64| (-x).exp();
+        let error = ((decoded - x) * 100.).powi(2) * ((y - last_y) * weight(x));
+        //dbg!(x, (y - last_y) * weight(x));
+        last_y = y;
+        //dbg!(error, x, weight(x));
         assert!(
             error.is_finite(),
             "encontered non-finite error {} for encoded value {}, decoded value {}, x: {}",
