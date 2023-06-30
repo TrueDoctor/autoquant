@@ -83,7 +83,7 @@ impl<'a, const N: usize> ErrorFunction<'a, N> {
         }
         let index = self.index;
         self[index] = min;
-        self.bits.to_mut()[index] = first.bits.as_ref()[first_bits].clone();
+        self.bits.to_mut()[index] = first.bits.as_ref()[first_bits.min(A - 1)].clone();
         self.bits.to_mut()[index].push(self.index - first_bits);
         self.index += 1;
     }
