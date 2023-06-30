@@ -153,7 +153,7 @@ pub struct OptimizedLin(Vec<f64>);
 
 impl OptimizedLin {
     pub fn new(dist: Dist, quantization: u64) -> Self {
-        let params = vec![vec![1.0, 0.0], vec![1.1, 0.0], vec![1.0, 0.1]];
+        let params = vec![vec![1.0, 0.0], vec![1.1, 0.0], vec![1.0, -0.1]];
         let nm: NelderMead<Vec<f64>, f64> = NelderMead::new(params);
 
         //log::debug!("dist: {:?}", dist);

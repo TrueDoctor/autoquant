@@ -52,8 +52,7 @@ pub fn generate_normal_distribution(
 pub fn encode(value: f64, fit: &dyn FitFn, samples: u64) -> u64 {
     let mapped_value = fit.function(value);
     assert!(!mapped_value.is_nan(), "mapped value is NaN");
-    let normalized = mapped_value.clamp(0., 1.);
-    (normalized * samples as f64) as u64
+    (mapped_value * samples as f64).clamp(0., samples as f64) as u64
 }
 pub fn decode(value: u64, fit: &dyn FitFn, samples: u64) -> f64 {
     let x = value as f64 / samples as f64;
@@ -69,6 +68,10 @@ pub fn distribution_error<T: FitFn>(data: &[(f64, f64)], fun: T, quantization: u
 
         let _weight = |x: f64| (x * 10. + 1.).ln();
         let error = (decoded - x).powi(2) * (yn - y);
+        println!(
+            "x: {}, y: {}, encoded: {}, decoded: {}, error: {}",
+            x, y, encoded, decoded, error
+        );
         assert!(
             error.is_finite(),
             "encontered non-finite error {} for encoded value {}, decoded value {}, x: {}",
