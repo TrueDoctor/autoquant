@@ -3,6 +3,8 @@ use rand::distributions::Distribution;
 #[cfg(feature = "generation")]
 use statrs::distribution::Normal;
 
+use rayon::prelude::*;
+
 pub mod sum;
 
 pub mod packing;
@@ -50,7 +52,10 @@ pub fn generate_normal_distribution(
 }
 
 pub fn encode(value: f64, fit: &dyn FitFn, samples: u64) -> u64 {
-    let mapped_value = fit.function(value);
+    let mut mapped_value = fit.function(value);
+    if !mapped_value.is_finite() {
+        mapped_value = 0.;
+    }
     assert!(!mapped_value.is_nan(), "mapped value is NaN");
     (mapped_value * samples as f64).clamp(0., samples as f64) as u64
 }
@@ -59,7 +64,11 @@ pub fn decode(value: u64, fit: &dyn FitFn, samples: u64) -> f64 {
     if !x.is_finite() {
         x = 0.;
     }
-    fit.inverse(x)
+    x = fit.inverse(x);
+    if !x.is_finite() {
+        x = 0.;
+    }
+    x
 }
 
 pub fn distribution_error<T: FitFn>(data: &[(f64, f64)], fun: T, quantization: u64) -> f64 {
@@ -68,11 +77,12 @@ pub fn distribution_error<T: FitFn>(data: &[(f64, f64)], fun: T, quantization: u
         let encoded = encode(x, &fun, quantization);
         let decoded = decode(encoded, &fun, quantization);
 
-        let weight = |x: f64| (-x).exp();
-        let error = ((decoded - x) * 100.).powi(2) * ((y - last_y) * weight(x));
-        //dbg!(x, (y - last_y) * weight(x));
+        let weight = |x: f64| (-(x).abs().clamp(0., 1.)).exp();
+        let error = ((decoded - x) * 100.).powi(2) * (y - last_y); // * weight(x));
+                                                                   //dbg!(x, (y - last_y) * weight(x));
         last_y = y;
         //dbg!(error, x, weight(x));
+
         assert!(
             error.is_finite(),
             "encontered non-finite error {} for encoded value {}, decoded value {}, x: {}",
@@ -84,7 +94,7 @@ pub fn distribution_error<T: FitFn>(data: &[(f64, f64)], fun: T, quantization: u
         error
     });
 
-    crate::sum::Sum::from_iter(iter).sum()
+    crate::sum::Sum::from_iter(iter).sum().sqrt()
 }
 
 pub fn inverse_of_distribution(distribution: &[(f64, f64)], y: f64) -> f64 {
@@ -178,10 +188,10 @@ impl<F: Fn(f64) -> f64, I: Fn(f64) -> f64> FitFn for SimpleFitFn<F, I> {
 #[cfg(feature = "fitting")]
 pub fn calculate_error_functions(train: &Dist, test: &Dist) -> (Vec<String>, Vec<Vec<f64>>) {
     let names = vec![
-        "exp".to_string(),
-        "log".to_string(),
         "linear".to_string(),
+        "log".to_string(),
         "pow".to_string(),
+        "exp".to_string(),
     ];
     let mut errors = (0..names.len()).map(|_| Vec::new()).collect::<Vec<_>>();
 
@@ -192,13 +202,16 @@ pub fn calculate_error_functions(train: &Dist, test: &Dist) -> (Vec<String>, Vec
 }
 
 pub fn calculate_error_function(train: &[(f64, f64)], i: usize, test: &[(f64, f64)]) -> Vec<f64> {
-    let mut errors = Vec::with_capacity(16);
-    for bits in 0..12 {
-        let levels = 1 << bits;
-        let fn_ = fit_function(train.to_vec(), levels, i);
-        let error = distribution_error(test, fn_.as_ref(), levels);
-        errors.push(error);
-    }
+    let bits: Vec<_> = (0..12).collect();
+    let errors: Vec<_> = bits
+        .par_iter()
+        .map(|bits| {
+            let levels = 1 << bits;
+            let fn_ = fit_function(train.to_vec(), levels, i);
+            let error = distribution_error(test, fn_.as_ref(), levels);
+            error
+        })
+        .collect();
     errors
 }
 #[cfg(feature = "fitting")]

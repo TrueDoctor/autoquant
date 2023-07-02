@@ -45,14 +45,13 @@ impl OptimizedLog {
         //log::debug!("dist: {:?}", dist);
         //println!("dist: {:?}", dist);
         let fit: Fit<OptimizedLog> = Fit::new(dist, quantization);
-        let executor = argmin::core::Executor::new(fit, nm)
-            .configure(|state| state.max_iters(1000))
-            .add_observer(SlogLogger::term(), ObserverMode::Every(200));
+        let executor =
+            argmin::core::Executor::new(fit, nm).configure(|state| state.max_iters(1000)); //.add_observer(SlogLogger::term(), ObserverMode::Every(200));
         let res = executor.run().unwrap();
         let params = res.state().best_param.clone().unwrap();
-        println!("Result: {:?}", res.state().best_cost);
-        println!("params: {:?}", params);
-        log::debug!("params: {:?}", params);
+        //println!("Result: {:?}", res.state().best_cost);
+        //println!("params: {:?}", params);
+        //log::debug!("params: {:?}", params);
         Self(params)
     }
 
@@ -105,14 +104,13 @@ impl OptimizedPow {
         //log::debug!("dist: {:?}", dist);
         //println!("dist: {:?}", dist);
         let fit: Fit<OptimizedPow> = Fit::new(dist, quantization);
-        let executor = argmin::core::Executor::new(fit, nm)
-            .configure(|state| state.max_iters(1000))
-            .add_observer(SlogLogger::term(), ObserverMode::Every(200));
+        let executor =
+            argmin::core::Executor::new(fit, nm).configure(|state| state.max_iters(1000)); //.add_observer(SlogLogger::term(), ObserverMode::Every(200));
         let res = executor.run().unwrap();
         let params = res.state().best_param.clone().unwrap();
-        println!("Result: {:?}", res.state().best_cost);
-        println!("params: {:?}", params);
-        log::debug!("params: {:?}", params);
+        //println!("Result: {:?}", res.state().best_cost);
+        //println!("params: {:?}", params);
+        //log::debug!("params: {:?}", params);
         Self(params)
     }
     pub fn parameters(&self) -> &[f64] {
@@ -159,14 +157,13 @@ impl OptimizedLin {
         //log::debug!("dist: {:?}", dist);
         //println!("dist: {:?}", dist);
         let fit: Fit<OptimizedLin> = Fit::new(dist, quantization);
-        let executor = argmin::core::Executor::new(fit, nm)
-            .configure(|state| state.max_iters(1000))
-            .add_observer(SlogLogger::term(), ObserverMode::Every(200));
+        let executor =
+            argmin::core::Executor::new(fit, nm).configure(|state| state.max_iters(1000)); //.add_observer(SlogLogger::term(), ObserverMode::Every(200));
         let res = executor.run().unwrap();
         let params = res.state().best_param.clone().unwrap();
-        println!("Result: {:?}", res.state().best_cost);
-        println!("params: {:?}", params);
-        log::debug!("params: {:?}", params);
+        //println!("Result: {:?}", res.state().best_cost);
+        //println!("params: {:?}", params);
+        //log::debug!("params: {:?}", params);
         Self(params)
     }
     pub fn parameters(&self) -> &[f64] {
@@ -212,14 +209,13 @@ impl OptimizedExp {
         //log::debug!("dist: {:?}", dist);
         //println!("dist: {:?}", dist);
         let fit: Fit<OptimizedExp> = Fit::new(dist, quantization);
-        let executor = argmin::core::Executor::new(fit, nm)
-            .configure(|state| state.max_iters(1000))
-            .add_observer(SlogLogger::term(), ObserverMode::Every(200));
+        let executor =
+            argmin::core::Executor::new(fit, nm).configure(|state| state.max_iters(1000)); //.add_observer(SlogLogger::term(), ObserverMode::Every(200));
         let res = executor.run().unwrap();
         let params = res.state().best_param.clone().unwrap();
-        println!("Result: {:?}", res.state().best_cost);
-        println!("params: {:?}", params);
-        log::debug!("params: {:?}", params);
+        //println!("Result: {:?}", res.state().best_cost);
+        //println!("params: {:?}", params);
+        //log::debug!("params: {:?}", params);
         Self(params)
     }
     pub fn parameters(&self) -> &[f64] {
